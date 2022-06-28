@@ -1,5 +1,9 @@
 #define CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE 0
+#define INFLUXDB
+#define WiFi_EN
+//#define DEBUG
+#define LEFT
 #include <Wire.h>
 #include <esp_task_wdt.h>
 /* Aus sich vom ESP IMU unten
@@ -11,29 +15,47 @@ Pin  IO  Mosfet
 9   5   5
 8   4   6
 7   3   7
-6   2   AnalogL
-5   1   AnalogR
+6   2   AnalogL Front
+5   1   AnalogR Hacke
 17  13  8
 16  12  9
 */
 //Analog
-#define sensorHPin 1//1,32  // Analog input pin that the potentiometer is attached to32
-#define sensorVPin 2//2, 33  // Analog input pin that the potentiometer is attached to33
+#ifdef LEFT
+  #define sensorHPin 2//1,32  // Analog input pin that the potentiometer is attached to32
+  #define sensorVPin 1//2, 33  // Analog input pin that the potentiometer is attached to33
+#else
+  #define sensorHPin 2//1,32  // Analog input pin that the potentiometer is attached to32
+  #define sensorVPin 1//2, 33  // Analog input pin that the potentiometer is attached to33
+#endif
 #define MESSUREMENT_SMAPLE_TIME 10//ms
 long lastMesurement = 0;
 long lastUpload = 0;
 int lastQueLen = 0;
 //Digital
-#define zuluftHPin 12
-#define verbinderPin 13
-#define Vibrator0 4
-//#define verbinderHPin 5;
-#define zuluftVPin 11
-#define Vibrator1 7
-#define Vibrator2 3
-#define Vibrator3 5
-#define Vibrator4 6
-#define Vibrator5 10
+#ifdef LEFT
+  #define zuluftHPin 7
+  #define verbinderPin 12
+  #define Vibrator0 3
+  //#define verbinderHPin 5;
+  #define zuluftVPin 10
+  #define Vibrator1 4
+  #define Vibrator2 5
+  #define Vibrator3 6
+  #define Vibrator4 13
+  #define Vibrator5 11
+#else
+  #define zuluftHPin 7
+  #define verbinderPin 12
+  #define Vibrator0 3
+  //#define verbinderHPin 5;
+  #define zuluftVPin 10
+  #define Vibrator1 4
+  #define Vibrator2 5
+  #define Vibrator3 6
+  #define Vibrator4 13
+  #define Vibrator5 11
+#endif
 #define PWM_FREQ 1500
 #define PWM_RES 8
 
@@ -45,7 +67,7 @@ int diff = 0;
 int base = 0;
 int filter = 0;
 int threshold = 15;
-int state = 0;
+int state = 2600;
 int vState = 1;
 int cc = 0;
 double baseline = 0;
@@ -61,9 +83,6 @@ enum stepState {
   UNDEFINED
 };
 stepState sState = UNDEFINED;
-#define INFLUXDB
-#define WiFi_EN
-//#define DEBUG
 
 #ifdef WiFi_EN
 #include <WiFi.h>
@@ -89,19 +108,23 @@ WebServer server(80);
 #define NTP_SERVER1  "pool.ntp.org"
 #define NTP_SERVER2  "time.nis.gov"
 #define WRITE_PRECISION WritePrecision::MS
-#define MAX_BATCH_SIZE 100
-#define WRITE_BUFFER_SIZE 300
+#define MAX_BATCH_SIZE 200
+#define WRITE_BUFFER_SIZE MAX_BATCH_SIZE*2
 
 InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
 // Links oder Rechts
-Point sensorStatus("L");// L, R
+#ifdef LEFT
+  Point sensorStatus("L");// L, R
+#else
+  Point sensorStatus("R");// L, R
+#endif
 #endif
 
 // define two tasks
 void TaskLoop( void *pvParameters );
 void TaskUpload( void *pvParameters );
 
-#define msg_queue_len 800
+#define msg_queue_len 10000
 int16_t accelX, accelY, accelZ;
 int16_t gyroX, gyroY, gyroZ;
 struct SensorReading
@@ -279,7 +302,7 @@ void setupMPU(){
   Wire.endTransmission(); 
   Wire.beginTransmission(0b1101000); //I2C address of the MPU
   Wire.write(0x1C); //Accessing the register 1C - Acccelerometer Configuration (Sec. 4.5) 
-  Wire.write(0b00011000); //Setting the accel to +/- 2g
+  Wire.write(0b00001000); //Setting the accel to +/- 2g
   /*
     0 ± 2g
     1 ± 4g
@@ -411,7 +434,6 @@ void setup() {
   #endif
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  8192,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
-  xTaskCreatePinnedToCore(TaskWebserver,  "TaskWebserver",  4192,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
   #ifdef DEBUG
   Serial.println("task2 Fertig");
   #endif
@@ -419,12 +441,14 @@ void setup() {
   server.on(UriRegex("^\\/parameter\\/([0-9]+)\\/value\\/([0-9]+)$"), []() {
     String parameter = server.pathArg(0);
     String value = server.pathArg(1);
+    state = value.toInt();
     server.send(200, "text/plain", "Set " + parameter + " to " + value);
   });
   server.on("/status", []() {
     server.send(200, "text/plain", "Die letzte Messung dauerte: " + String(lastMesurement) + "microsekunden<br>Der letzte Upload dauerte: " + String(lastUpload) + "microsekunden und hatte " + String(lastQueLen) + " Elemente.");
   });
   server.begin();
+  xTaskCreatePinnedToCore(TaskWebserver,  "TaskWebserver",  4192,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
   #endif
   #ifdef DEBUG
   Serial.println("Webserver Fertig");
@@ -448,7 +472,6 @@ void TaskLoop(void *pvParameters)  // This is a task.
   #ifdef DEBUG
   Serial.println("Start Loop");
   #endif
-  Point temptime("t");
   long tempMessure = 0;
   struct timeval tv; // Erstelle die Zeit
   TickType_t xLastWakeTime;
