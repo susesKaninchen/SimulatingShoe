@@ -5,6 +5,7 @@
 //#define DEBUG
 #define LEFT
 #include <Wire.h>
+#include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
 /* Aus sich vom ESP IMU unten
 Pin  IO  Mosfet
@@ -25,8 +26,8 @@ Pin  IO  Mosfet
   #define sensorHPin 2//1,32  // Analog input pin that the potentiometer is attached to32
   #define sensorVPin 1//2, 33  // Analog input pin that the potentiometer is attached to33
 #else
-  #define sensorHPin 2//1,32  // Analog input pin that the potentiometer is attached to32
-  #define sensorVPin 1//2, 33  // Analog input pin that the potentiometer is attached to33
+  #define sensorHPin 1//1,32  // Analog input pin that the potentiometer is attached to32
+  #define sensorVPin 2//2, 33  // Analog input pin that the potentiometer is attached to33
 #endif
 #define MESSUREMENT_SMAPLE_TIME 10//ms
 long lastMesurement = 0;
@@ -45,9 +46,9 @@ int lastQueLen = 0;
   #define Vibrator4 13
   #define Vibrator5 11
 #else
-  #define zuluftHPin 7
+  #define zuluftHPin 3
   #define verbinderPin 12
-  #define Vibrator0 3
+  #define Vibrator0 7
   //#define verbinderHPin 5;
   #define zuluftVPin 10
   #define Vibrator1 4
@@ -87,18 +88,17 @@ stepState sState = UNDEFINED;
 #ifdef WiFi_EN
 #include <WiFi.h>
 #include <WiFiClient.h>
+#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include <WebServer.h>
 #include <uri/UriBraces.h>
 #include <uri/UriRegex.h>
+WiFiManager wm;
 WebServer server(80);
 #endif
 
 #ifdef INFLUXDB
 #include <InfluxDbClient.h>
 #include <InfluxDbCloud.h>
-
-#define WIFI_SSID "fablab"
-#define WIFI_PASSWORD "fablabfdm"
 #define INFLUXDB_URL "https://europe-west1-1.gcp.cloud2.influxdata.com"
 #define INFLUXDB_TOKEN "-uPns8ptZ32cvyMqNv3c4Ez-ycV5XQYsRv3p3FVPJ7uDPn7n-gI7b88BW9HmxhMNjRySxLZb54-3uKuODIijHg=="
 #define INFLUXDB_ORG "marcogabrecht@gmail.com"
@@ -108,7 +108,7 @@ WebServer server(80);
 #define NTP_SERVER1  "pool.ntp.org"
 #define NTP_SERVER2  "time.nis.gov"
 #define WRITE_PRECISION WritePrecision::MS
-#define MAX_BATCH_SIZE 200
+#define MAX_BATCH_SIZE 130
 #define WRITE_BUFFER_SIZE MAX_BATCH_SIZE*2
 
 InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
@@ -124,7 +124,7 @@ InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKE
 void TaskLoop( void *pvParameters );
 void TaskUpload( void *pvParameters );
 
-#define msg_queue_len 10000
+#define msg_queue_len 500
 int16_t accelX, accelY, accelZ;
 int16_t gyroX, gyroY, gyroZ;
 struct SensorReading
@@ -360,16 +360,8 @@ void setup() {
   
 #ifdef INFLUXDB
 #ifdef WiFi_EN
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  #ifdef DEBUG
-  Serial.print("Connecting to wifi");
-  #endif
-  while (WiFi.status() != WL_CONNECTED) {
-    #ifdef DEBUG
-    Serial.print(".");
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    #endif
-  }
+    bool res;
+    res = wm.autoConnect("Shoe","shoeshoe"); // password protected ap
 #ifdef DEBUG
   Serial.println(WiFi.localIP());                                                                                                                                                                                          
 #endif
@@ -501,9 +493,11 @@ void TaskLoop(void *pvParameters)  // This is a task.
 }
 
 void TaskWebserver(void*pvParameters) {
+  ArduinoOTA.begin();
   for (;;)
   {
     server.handleClient();
+    ArduinoOTA.handle();
     vTaskDelay(200 / portTICK_PERIOD_MS);
   }
 }
@@ -538,7 +532,7 @@ void TaskUpload(void *pvParameters)  // This is a task.
       #ifdef WiFi_EN
       #else
       #ifdef DEBUG
-      Serial.println(client.pointToLineProtocol(sensorStatus));
+      //Serial.println(client.pointToLineProtocol(sensorStatus));
       #endif
       #endif
       sensorStatus.clearFields();
@@ -569,7 +563,5 @@ void TaskUpload(void *pvParameters)  // This is a task.
     Serial.println("END Uploadet");
     #endif
 #endif
-  vTaskDelay(20 / portTICK_PERIOD_MS);
-    //vTaskSuspend( NULL );
   }
 }
