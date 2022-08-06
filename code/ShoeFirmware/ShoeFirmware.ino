@@ -3,7 +3,7 @@
 #define INFLUXDB
 #define WiFi_EN
 //#define DEBUG
-#define LEFT
+//#define LEFT
 #include <Wire.h>
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
@@ -60,22 +60,24 @@ int lastQueLen = 0;
 #define PWM_FREQ 1500
 #define PWM_RES 8
 
-
+int vMode = 4;
+int modeTimerTicks = 0;
 int sensorValueH = 0;        // value read from the pot
 int sensorValueV = 0;        // value read from the pot
 int sensorValueG = 0;        // value read from the pot
 int diff = 0;
 int base = 0;
 int filter = 0;
-int threshold = 15;
-int state = 2600;
-int vState = 1;
+int threshold = 20;
+int state = 3;
 int cc = 0;
 double baseline = 0;
 unsigned long startHigh = 0;
 unsigned long startLow = 0;
 unsigned long laststartHigh = 0;
 unsigned long laststartLow = 0;
+long clientDelay =200;
+boolean vibrate = true;
 enum stepState {
   GROUND,
   UP,
@@ -108,23 +110,20 @@ WebServer server(80);
 #define NTP_SERVER1  "pool.ntp.org"
 #define NTP_SERVER2  "time.nis.gov"
 #define WRITE_PRECISION WritePrecision::MS
-#define MAX_BATCH_SIZE 130
-#define WRITE_BUFFER_SIZE MAX_BATCH_SIZE*2
-
-InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
-// Links oder Rechts
-#ifdef LEFT
-  Point sensorStatus("L");// L, R
-#else
-  Point sensorStatus("R");// L, R
-#endif
+#define MAX_BATCH_SIZE 250
+#define WRITE_BUFFER_SIZE 400//MAX_BATCH_SIZE*2
 #endif
 
 // define two tasks
+TaskHandle_t tloop;
+TaskHandle_t tUpload;
 void TaskLoop( void *pvParameters );
 void TaskUpload( void *pvParameters );
+int ramLoop = 4096;
+int ramUpload = 18384;
+int ramWebservice = 4096;
 
-#define msg_queue_len 500
+#define msg_queue_len 400
 int16_t accelX, accelY, accelZ;
 int16_t gyroX, gyroY, gyroZ;
 struct SensorReading
@@ -182,25 +181,93 @@ void calibrate() {
 }
 
 void setVibration(int value) {
-  for (int count = 0; count<=5; count++) {
+  for (int count = 0; count<6; count++) {
     ledcWrite(count, value);
   }
 }
 
 void setVibration(int values[]) {
-  for (int count = 0; count<=5; count++) {
+  for (int count = 0; count<6; count++) {
     ledcWrite(count, values[count]);
   }
 }
 
 void updateVibrationSystem() {
-  if (sState == STANDING) {
+  if (vMode == 0) {//Aus
+    setVibration(0);
+  }else if (vMode == 1) {//Random
+    if (sensorValueH>2800||sensorValueV>2800) {
+      setVibration(random(0, 255));
+    }else {
+      setVibration(0);
+    }
+  } else if (vMode == 2) {//Beim Auftreten
+    if (sensorValueH>2800||sensorValueV>2800) {
+      setVibration(255);
+    }else {
+      setVibration(0);
+    }
+  } else if (vMode == 3) {//entlang des ganges
+    if (sensorValueH>2800&&sensorValueV>2800) {
+      int values[] = {255,255,0,255,0,255};
+      setVibration(values);
+    }else if (sensorValueH>2800){
+      int values[] = {0,0,0,0,255,255};
+      setVibration(values);
+    }else if (sensorValueV>2800){
+      int values[] = {0,255,255,255,0,0};
+      setVibration(values);
+    }else {
+      setVibration(0);
+    }
+  } else if (vMode == 4) {//Simulate Asphalt
+    if (sensorValueH>2800||sensorValueV>2800) {
+      if (modeTimerTicks < 5) {
+        modeTimerTicks++;
+        setVibration(220);
+      } else {
+        setVibration(0);
+      }
+    }else {
+      modeTimerTicks = 0;
+      setVibration(0);
+    }
+  } else if (vMode == 5) {//Simulate Schotter
+    if (sensorValueH>2800||sensorValueV>2800) {
+      if (!(modeTimerTicks%(10 + random(10)))) {
+        modeTimerTicks++;
+        if (ledcRead(1)) {
+          setVibration(255);
+        }else {
+          setVibration(0);
+        }
+      }
+    }else {
+      modeTimerTicks = 0;
+      setVibration(0);
+    }
+  } else if (vMode == 6) {//Simulate Gras
+    if (sensorValueH>2800||sensorValueV>2800) {
+      if (!(modeTimerTicks%(10 + random(10)))) {
+        modeTimerTicks++;
+        if (ledcRead(1)) {
+          setVibration(200);
+        }else {
+          setVibration(0);
+        }
+      }
+    }else {
+      modeTimerTicks = 0;
+      setVibration(0);
+    }
+  }
+  /*if (sState == STANDING) {
       setVibration(150);
   }else if (sState == GROUND) {
       setVibration(255);
   }else {
       setVibration(0);
-  }
+  }*/
 }
 
 void updateValveSystem() {
@@ -361,7 +428,11 @@ void setup() {
 #ifdef INFLUXDB
 #ifdef WiFi_EN
     bool res;
-    res = wm.autoConnect("Shoe","shoeshoe"); // password protected ap
+    #ifdef LEFT
+    res = wm.autoConnect("ShoeL","shoeshoe"); // password protected ap
+    #else
+    res = wm.autoConnect("ShoeR","shoeshoe"); // password protected ap
+    #endif
 #ifdef DEBUG
   Serial.println(WiFi.localIP());                                                                                                                                                                                          
 #endif
@@ -370,10 +441,6 @@ void setup() {
   timeSync(TZ_INFO, NTP_SERVER1, NTP_SERVER2);
   #ifdef DEBUG
   Serial.println("time Fertig");
-  #endif
-  client.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(MAX_BATCH_SIZE).bufferSize(WRITE_BUFFER_SIZE));
-  #ifdef DEBUG
-  Serial.println("client Fertig");
   #endif
 #endif
   msg_queue = xQueueCreate(msg_queue_len, sizeof(SensorReading));
@@ -420,27 +487,17 @@ void setup() {
   #ifdef DEBUG
   Serial.println("callibarate Fertig");
   #endif
-  xTaskCreatePinnedToCore(TaskLoop,  "TaskLoop",  8192,  NULL, configMAX_PRIORITIES - 1,  NULL,  ARDUINO_RUNNING_CORE);
+  xTaskCreatePinnedToCore(TaskLoop,  "TaskLoop",  ramLoop,  NULL, configMAX_PRIORITIES - 1,  &tloop,  ARDUINO_RUNNING_CORE);
   #ifdef DEBUG
   Serial.println("task1 Fertig");
   #endif
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
-  xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  8192,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+  xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
   #ifdef DEBUG
   Serial.println("task2 Fertig");
   #endif
   #ifdef WiFi_EN
-  server.on(UriRegex("^\\/parameter\\/([0-9]+)\\/value\\/([0-9]+)$"), []() {
-    String parameter = server.pathArg(0);
-    String value = server.pathArg(1);
-    state = value.toInt();
-    server.send(200, "text/plain", "Set " + parameter + " to " + value);
-  });
-  server.on("/status", []() {
-    server.send(200, "text/plain", "Die letzte Messung dauerte: " + String(lastMesurement) + "microsekunden<br>Der letzte Upload dauerte: " + String(lastUpload) + "microsekunden und hatte " + String(lastQueLen) + " Elemente.");
-  });
-  server.begin();
-  xTaskCreatePinnedToCore(TaskWebserver,  "TaskWebserver",  4192,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
+  xTaskCreatePinnedToCore(TaskWebserver,  "TaskWebserver",  ramWebservice,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
   #endif
   #ifdef DEBUG
   Serial.println("Webserver Fertig");
@@ -479,7 +536,9 @@ void TaskLoop(void *pvParameters)  // This is a task.
     messure();// Messe den druck der Kammern
     classifyMovement();// Classifiziere die Bewegung
     updateValveSystem();// Setze die Ventile
-    updateVibrationSystem();// Setze die Vibration
+    if (vibrate) {
+      updateVibrationSystem();// Setze die Vibration
+    }
     SensorReading pointValue = {accelX, accelY, accelZ, gyroX, gyroY, gyroZ,sensorValueV, sensorValueH, baseline, getTimeStamp(&tv,3)};
     // Punkt wird erstellt mit allen gelesenen werten
     if (xQueueSend(msg_queue, (void *)&pointValue, 0) != pdTRUE) {
@@ -493,12 +552,64 @@ void TaskLoop(void *pvParameters)  // This is a task.
 }
 
 void TaskWebserver(void*pvParameters) {
+  ArduinoOTA
+    .onStart([]() {
+      clientDelay = 1;
+      vTaskDelete(tUpload);
+      vTaskDelete(tloop);
+    })
+    .onEnd([]() {
+      clientDelay = 200;
+      ESP.restart();
+    });
   ArduinoOTA.begin();
+  server.on(UriRegex("^\\/parameter\\/([0-9]+)\\/value\\/([0-9]+)$"), []() {
+    String parameter = server.pathArg(0);
+    String value = server.pathArg(1);
+    state = value.toInt();
+    server.send(200, "text/plain", "Set " + parameter + " to " + value);
+  });
+  server.on(UriRegex("^\\/vibrate\\/([0-5])$"), []() {
+    String parameter = server.pathArg(0);
+    int value = parameter.toInt();
+    server.send(200, "text/plain", "Vibrate Motor " + String(value) + "");
+    vTaskDelete(tloop);
+    ledcWrite(value, 255);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    ledcWrite(value, 0);
+    xTaskCreatePinnedToCore(TaskLoop,  "TaskLoop",  ramLoop,  NULL, configMAX_PRIORITIES - 1,  &tloop,  ARDUINO_RUNNING_CORE);
+    //xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
+  });
+  server.on("/stop", []() {
+    server.send(200, "text/plain", "Stoppe Upload und ValveSystem");
+    state = 3;
+    vTaskDelete(tUpload);
+  });
+  server.on("/start", []() {
+    server.send(200, "text/plain", "Stoppe Upload und ValveSystem");
+    state = 2600;
+    xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
+  });
+  server.on("/status", []() {
+    server.send(200, "text/plain", "Die letzte Messung dauerte: " + String(lastMesurement) + "microsekunden<br>Der letzte Upload dauerte: " + String(lastUpload) + "microsekunden und hatte " + String(lastQueLen) + " Elemente.<br>Freier Heep: " + String(ESP.getFreeHeap()));
+  });
+  server.on("/vibrate", []() {
+    vibrate = !vibrate;
+    server.send(200, "text/plain", "Vibrate: " + String(vibrate));
+  });
+  server.on("/restart", []() {
+    server.send(200, "text/plain", "Starte Neu");
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    ESP.restart();
+    
+  });
+  
+  server.begin();
   for (;;)
   {
     server.handleClient();
     ArduinoOTA.handle();
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(clientDelay / portTICK_PERIOD_MS);
   }
 }
 
@@ -509,12 +620,21 @@ void TaskUpload(void *pvParameters)  // This is a task.
   #ifdef DEBUG
   Serial.println("Start uploadtask");
   #endif
+  InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
+// Links oder Rechts
+#ifdef LEFT
+  Point sensorStatus("L");// L, R
+#else
+  Point sensorStatus("R");// L, R
+#endif
+client.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(MAX_BATCH_SIZE).bufferSize(WRITE_BUFFER_SIZE));
+  
   SensorReading item;
   long tempUploadTime = 0;
   for (;;)
   {
     int xD = 0;
-    while (xQueueReceive(msg_queue, (void *)&item, 0) == pdTRUE) {
+    while (xQueueReceive(msg_queue, (void *)&item, 0) == pdTRUE && xD < MAX_BATCH_SIZE) {
       xD++;
       //Serial.println(item);
 #ifdef INFLUXDB
@@ -557,7 +677,7 @@ void TaskUpload(void *pvParameters)  // This is a task.
     }
     lastUpload = micros() - tempUploadTime;
 #else
-    vTaskDelay(900 / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 #endif
 #ifdef DEBUG
     Serial.println("END Uploadet");
