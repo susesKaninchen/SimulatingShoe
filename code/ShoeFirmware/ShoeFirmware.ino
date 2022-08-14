@@ -62,6 +62,7 @@ int lastQueLen = 0;
 
 int vMode = 4;
 int modeTimerTicks = 0;
+long valveTimer = 0;
 int sensorValueH = 0;        // value read from the pot
 int sensorValueV = 0;        // value read from the pot
 int sensorValueG = 0;        // value read from the pot
@@ -113,6 +114,82 @@ WebServer server(80);
 #define MAX_BATCH_SIZE 250
 #define WRITE_BUFFER_SIZE 400//MAX_BATCH_SIZE*2
 #endif
+
+// HTML web page
+const char index_html[] PROGMEM = R"***(
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>Modes</h1>
+
+<form action="/action_page.php">
+  <p>Please select the SystemState:</p>
+ <input onchange="sendRe(stop)" type="radio" id="stop" name="fav_language" value="stop">
+  <label for="html">STOP Upload</label><br>
+  <input onchange="sendRe(start)" type="radio" id="start" name="fav_language" value="start">
+  <label for="html">START Upload</label><br>
+  <input onchange="sendRe(asphalte)" type="radio" id="asphalte" name="fav_language" value="asphalte">
+  <label for="html">Asphalte</label><br>
+  <input onchange="sendRe(grass)" type="radio" id="grass" name="fav_language" value="grass">
+  <label for="html">grass</label><br>
+  <input onchange="sendRe(sand)" type="radio" id="sand" name="fav_language" value="sand">
+  <label for="html">sand</label><br>
+  <input onchange="sendRe(lenolium)" type="radio" id="lenolium" name="fav_language" value="lenolium">
+  <label for="html">Lenolium</label><br>
+  <input onchange="sendRe(gravel)" type="radio" id="gravel" name="fav_language" value="gravel">
+  <label for="html">Gravel</label><br>
+  <input onchange="sendRe(restart)" type="radio" id="restart" name="fav_language" value="restart">
+  <label for="html">restart</label><br>
+  <input onchange="sendRe(vibrate)" type="radio" id="vibrate" name="fav_language" value="vibrate">
+  <label for="html">VibrationToggle</label><br>
+  <input onchange="changeMode(mode1)" type="radio" id="modeRadio" name="fav_language" value="modeRadio">
+  <input type="text" id="mode1" name="modeValue1" value="0"><br>
+  <input onchange="changeMode(mode2)" type="radio" id="modeRadio" name="fav_language" value="modeRadio">
+  <input type="text" id="mode2" name="modeValue2" value="0"><br>
+  <br><br>
+  <span id="status"></span>
+  <br>
+</form>
+
+<script>
+function changeMode(x) {
+  document.getElementById("status").innerHTML = "";
+
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("status").innerHTML =
+      "OK";
+    }else {
+      document.getElementById("status").innerHTML =
+      "ERR";
+    }
+  };
+  xhttp.open("GET", '/parameter/0/value/' + (x.value + ''), true);
+  xhttp.send();
+}
+
+function sendRe(link) {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("status").innerHTML =
+      "OK";
+    }else {
+      document.getElementById("status").innerHTML =
+      "ERR";
+    }
+  };
+  xhttp.open("GET", link.id, true);
+  xhttp.send();
+}
+</script>
+
+</body>
+</html>
+)***";
+
 
 // define two tasks
 TaskHandle_t tloop;
@@ -224,7 +301,7 @@ void updateVibrationSystem() {
     if (sensorValueH>2800||sensorValueV>2800) {
       if (modeTimerTicks < 5) {
         modeTimerTicks++;
-        setVibration(220);
+        setVibration(244);
       } else {
         setVibration(0);
       }
@@ -248,14 +325,26 @@ void updateVibrationSystem() {
     }
   } else if (vMode == 6) {//Simulate Gras
     if (sensorValueH>2800||sensorValueV>2800) {
-      if (!(modeTimerTicks%(10 + random(10)))) {
-        modeTimerTicks++;
-        if (ledcRead(1)) {
-          setVibration(200);
-        }else {
-          setVibration(0);
-        }
-      }
+      //if (!(modeTimerTicks%(10 + random(10)))) {
+      //  modeTimerTicks++;
+      //  if (ledcRead(1)) {
+          setVibration(180);
+      //  }else {
+      //    setVibration(0);
+      //  }
+    }else {
+      modeTimerTicks = 0;
+      setVibration(0);
+    }
+  } else if (vMode == 7) {//Simulate Sand
+    if (sensorValueH>2800||sensorValueV>2800) {
+      //if (!(modeTimerTicks%(10 + random(10)))) {
+      //  modeTimerTicks++;
+      //  if (ledcRead(1)) {
+          setVibration(210);
+      //  }else {
+      //    setVibration(0);
+      //  }
     }else {
       modeTimerTicks = 0;
       setVibration(0);
@@ -270,9 +359,8 @@ void updateVibrationSystem() {
   }*/
 }
 
-void updateValveSystem() {
-  if (state == 0) {// PUMP_FRONT
-    if (sensorValueH<base-threshold) {
+void pumpFront() {
+  if (sensorValueH<base-threshold) {
       digitalWrite(zuluftHPin, HIGH);//ZuluftHacke
     }else {
       digitalWrite(zuluftHPin, LOW);//ZuluftHacke
@@ -287,8 +375,10 @@ void updateValveSystem() {
     }else {
       digitalWrite(verbinderPin, LOW);
     }
-  } else if (state == 1) {// PUMP_BACK
-    if (sensorValueH<base-threshold) {
+}
+
+void pumpBack() {
+  if (sensorValueH<base-threshold) {
       digitalWrite(zuluftHPin, HIGH);//ZuluftHacke
     }else {
       digitalWrite(zuluftHPin, LOW);//ZuluftHacke
@@ -303,38 +393,24 @@ void updateValveSystem() {
     }else {
       digitalWrite(verbinderPin, LOW);
     }
-  } else if (state == 2) {// EVEN_OUT
-     digitalWrite(verbinderPin, HIGH);
-     if (cc%100 == 0) {
-      state = 3;
+}
+
+void evenOut(int millisecends) {
+  if (millisecends > 0) {
+    if (valveTimer == 0) {
+      valveTimer = millis();
+    } else {
+      if (valveTimer + millisecends < millis()) {
+        state = 3;
+        valveTimer = 0;
+      }
     }
-  } else if (state == 3) {// PAUSE
-    digitalWrite(zuluftHPin, LOW);
-    digitalWrite(verbinderPin, LOW);
-    digitalWrite(zuluftVPin, LOW);
-  } else if (state == 4) {// OPEN
-    digitalWrite(zuluftHPin, HIGH);
-    digitalWrite(verbinderPin, LOW);
-    digitalWrite(zuluftVPin, HIGH);
-  } else if (state == 5) {// EVEN_OUT
-    
-  } else if (state == 6) {// CALLIBRATE
-    calibrate();
-    state = 3;
-  } else if (state == 7) {// KeineAhung
-    
-  } else {// Go To Value FRONT
-    if (sensorValueH<base-threshold) {
-        digitalWrite(zuluftHPin, HIGH);//ZuluftHacke
-      }else {
-        digitalWrite(zuluftHPin, LOW);//ZuluftHacke
-      }
-      if (sensorValueV<base-threshold) {
-        digitalWrite(zuluftVPin, HIGH);//ZuluftHacke
-      }else {
-        digitalWrite(zuluftVPin, LOW);//ZuluftHacke
-      }
-    if (sensorValueV < state) {
+  }
+  digitalWrite(verbinderPin, HIGH);
+}
+
+void holdValue(int value) {
+    if (sensorValueV < value) {
       if (sensorValueV<sensorValueH - threshold) {// von leiner Kammer in große Kammer
         digitalWrite(verbinderPin, HIGH);
       }else {
@@ -345,6 +421,66 @@ void updateValveSystem() {
       digitalWrite(verbinderPin, LOW);
       digitalWrite(zuluftVPin, LOW);
     }
+      if (sensorValueH<base-threshold) {
+        digitalWrite(zuluftHPin, HIGH);//ZuluftHacke
+      }else {
+        digitalWrite(zuluftHPin, LOW);//ZuluftHacke
+      }
+      if (sensorValueV<base-threshold) {
+        digitalWrite(zuluftVPin, HIGH);//ZuluftHacke
+      }else {
+        digitalWrite(zuluftVPin, LOW);//ZuluftHacke
+      }
+}
+
+void setValue(int value) {
+  if (sensorValueV < value) {
+      if (sensorValueV<sensorValueH - threshold) {// von leiner Kammer in große Kammer
+        digitalWrite(verbinderPin, HIGH);
+      }else {
+        digitalWrite(verbinderPin, LOW);
+      }
+    } else {
+      state = 2;
+    }
+    if (sensorValueH<base-threshold) {
+        digitalWrite(zuluftHPin, HIGH);//ZuluftHacke
+      }else {
+        digitalWrite(zuluftHPin, LOW);//ZuluftHacke
+      }
+      if (sensorValueV<base-threshold) {
+        digitalWrite(zuluftVPin, HIGH);//ZuluftFront
+      }else {
+        digitalWrite(zuluftVPin, LOW);//ZuluftFront
+      }
+}
+
+void updateValveSystem() {
+  if (state == 0) {// PUMP_FRONT
+    pumpFront();
+  } else if (state == 1) {// PUMP_BACK
+    pumpBack();
+  } else if (state == 2) {// EVEN_OUT
+     evenOut(1000);
+  } else if (state == 3) {// PAUSE
+    digitalWrite(zuluftHPin, LOW);
+    digitalWrite(verbinderPin, LOW);
+    digitalWrite(zuluftVPin, LOW);
+  } else if (state == 4) {// OPEN
+    digitalWrite(zuluftHPin, HIGH);
+    digitalWrite(verbinderPin, LOW);
+    digitalWrite(zuluftVPin, HIGH);
+  } else if (state == 5) {// Evenout vorever
+    evenOut(0);
+  } else if (state == 6) {// CALLIBRATE
+    calibrate();
+    state = 3;
+  } else if (state == 7) {//
+    
+  } else if (state < 5000) {// Go To Value FRONT
+    holdValue(state);
+  } else {
+    setValue(state * 0.1);
   }
   cc++;
   if (cc == 1000) {
@@ -563,6 +699,9 @@ void TaskWebserver(void*pvParameters) {
       ESP.restart();
     });
   ArduinoOTA.begin();
+  server.on("/", HTTP_GET, [](){
+    server.send_P(200, "text/html", index_html);
+  });
   server.on(UriRegex("^\\/parameter\\/([0-9]+)\\/value\\/([0-9]+)$"), []() {
     String parameter = server.pathArg(0);
     String value = server.pathArg(1);
@@ -596,6 +735,35 @@ void TaskWebserver(void*pvParameters) {
   server.on("/vibrate", []() {
     vibrate = !vibrate;
     server.send(200, "text/plain", "Vibrate: " + String(vibrate));
+  });
+  server.on("/asphalt", []() {
+    vibrate = true;
+    vMode = 4;
+    state = 4000;
+    server.send(200, "text/plain", "Simulating Sand");
+  });
+  server.on("/grass", []() {
+    vibrate = true;
+    vMode = 6;
+    state = 5;
+    server.send(200, "text/plain", "Simulating Sand");
+  });
+  server.on("/sand", []() {
+    vibrate = true;
+    vMode = 7;
+    state = 5;
+    server.send(200, "text/plain", "Simulating Sand");
+  });
+  server.on("/lenolium", []() {
+    vibrate = false;
+    state = 32000;
+    server.send(200, "text/plain", "Simulating Sand");
+  });
+  server.on("/gravel", []() {
+    vibrate = true;
+    vMode = 5;
+    state = 34000;
+    server.send(200, "text/plain", "Simulating Sand");
   });
   server.on("/restart", []() {
     server.send(200, "text/plain", "Starte Neu");
