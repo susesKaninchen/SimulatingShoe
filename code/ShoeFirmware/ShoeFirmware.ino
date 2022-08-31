@@ -1,33 +1,33 @@
 #define CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE 0
-#define INFLUXDB
+//#define INFLUXDB
 #define WiFi_EN
 //#define DEBUG
-//#define LEFT
+#define LEFT
 #include <Wire.h>
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
 /* Aus sich vom ESP IMU unten
-Pin  IO  Mosfet
-15  11  1
-14  10  2
-11  7   3
-10  6   4
-9   5   5
-8   4   6
-7   3   7
-6   2   AnalogL Front
-5   1   AnalogR Hacke
-17  13  8
-16  12  9
+  Pin  IO  Mosfet
+  15  11  1
+  14  10  2
+  11  7   3
+  10  6   4
+  9   5   5
+  8   4   6
+  7   3   7
+  6   2   AnalogL Front
+  5   1   AnalogR Hacke
+  17  13  8
+  16  12  9
 */
 //Analog
 #ifdef LEFT
-  #define sensorHPin 2//1,32  // Analog input pin that the potentiometer is attached to32
-  #define sensorVPin 1//2, 33  // Analog input pin that the potentiometer is attached to33
+#define sensorHPin 2//1,32  // Analog input pin that the potentiometer is attached to32
+#define sensorVPin 1//2, 33  // Analog input pin that the potentiometer is attached to33
 #else
-  #define sensorHPin 1//1,32  // Analog input pin that the potentiometer is attached to32
-  #define sensorVPin 2//2, 33  // Analog input pin that the potentiometer is attached to33
+#define sensorHPin 1//1,32  // Analog input pin that the potentiometer is attached to32
+#define sensorVPin 2//2, 33  // Analog input pin that the potentiometer is attached to33
 #endif
 #define MESSUREMENT_SMAPLE_TIME 10//ms
 long lastMesurement = 0;
@@ -35,27 +35,27 @@ long lastUpload = 0;
 int lastQueLen = 0;
 //Digital
 #ifdef LEFT
-  #define zuluftHPin 7
-  #define verbinderPin 12
-  #define Vibrator0 3
-  //#define verbinderHPin 5;
-  #define zuluftVPin 10
-  #define Vibrator1 4
-  #define Vibrator2 5
-  #define Vibrator3 6
-  #define Vibrator4 13
-  #define Vibrator5 11
+#define zuluftHPin 7
+#define verbinderPin 12
+#define Vibrator0 3
+//#define verbinderHPin 5;
+#define zuluftVPin 10
+#define Vibrator1 4
+#define Vibrator2 5
+#define Vibrator3 6
+#define Vibrator4 13
+#define Vibrator5 11
 #else
-  #define zuluftHPin 3
-  #define verbinderPin 12
-  #define Vibrator0 7
-  //#define verbinderHPin 5;
-  #define zuluftVPin 10
-  #define Vibrator1 4
-  #define Vibrator2 5
-  #define Vibrator3 6
-  #define Vibrator4 13
-  #define Vibrator5 11
+#define zuluftHPin 3
+#define verbinderPin 12
+#define Vibrator0 7
+//#define verbinderHPin 5;
+#define zuluftVPin 10
+#define Vibrator1 4
+#define Vibrator2 5
+#define Vibrator3 6
+#define Vibrator4 13
+#define Vibrator5 11
 #endif
 #define PWM_FREQ 1500
 #define PWM_RES 8
@@ -72,12 +72,13 @@ int filter = 0;
 int threshold = 20;
 int state = 3;
 int cc = 0;
-double baseline = 0;
+double baselineH = 0;
+double baselineV = 0;
 unsigned long startHigh = 0;
 unsigned long startLow = 0;
 unsigned long laststartHigh = 0;
 unsigned long laststartLow = 0;
-long clientDelay =200;
+long clientDelay = 200;
 boolean vibrate = true;
 enum stepState {
   GROUND,
@@ -129,7 +130,7 @@ const char index_html[] PROGMEM = R"***(
   <label for="html">STOP Upload</label><br>
   <input onchange="sendRe(start)" type="radio" id="start" name="fav_language" value="start">
   <label for="html">START Upload</label><br>
-  <input onchange="sendRe(asphalte)" type="radio" id="asphalte" name="fav_language" value="asphalte">
+  <input onchange="sendRe(asphalt)" type="radio" id="asphalt" name="fav_language" value="asphalt">
   <label for="html">Asphalte</label><br>
   <input onchange="sendRe(grass)" type="radio" id="grass" name="fav_language" value="grass">
   <label for="html">grass</label><br>
@@ -195,7 +196,9 @@ function sendRe(link) {
 TaskHandle_t tloop;
 TaskHandle_t tUpload;
 void TaskLoop( void *pvParameters );
+#ifdef INFLUXDB
 void TaskUpload( void *pvParameters );
+#endif
 int ramLoop = 4096;
 int ramUpload = 18384;
 int ramWebservice = 4096;
@@ -222,7 +225,8 @@ void messure() {
   //sensorValueG = analogRead(sensorGPin);
   sensorValueH = analogRead(sensorHPin)-sensorValueG;
   sensorValueV = analogRead(sensorVPin)-diff-sensorValueG;
-  baseline = baseline*0.990 + sensorValueH*0.010;
+  baselineH = baselineH*0.990 + sensorValueH*0.010;
+  baselineV = baselineV*0.990 + sensorValueV*0.010;
 }
 
 void calibrate() {
@@ -250,7 +254,8 @@ void calibrate() {
   sensorValueG /= MeasurementsToAverage;
   diff = sensorValueV - sensorValueH;
   base = sensorValueH;
-  baseline = base;
+  baselineH = base;
+  baselineV = base;
   startHigh = millis();
   startLow = millis();
   laststartHigh = millis();
@@ -273,32 +278,32 @@ void updateVibrationSystem() {
   if (vMode == 0) {//Aus
     setVibration(0);
   }else if (vMode == 1) {//Random
-    if (sensorValueH>2800||sensorValueV>2800) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
       setVibration(random(0, 255));
     }else {
       setVibration(0);
     }
   } else if (vMode == 2) {//Beim Auftreten
-    if (sensorValueH>2800||sensorValueV>2800) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
       setVibration(255);
     }else {
       setVibration(0);
     }
   } else if (vMode == 3) {//entlang des ganges
-    if (sensorValueH>2800&&sensorValueV>2800) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
       int values[] = {255,255,0,255,0,255};
       setVibration(values);
-    }else if (sensorValueH>2800){
+    }else if (sensorValueH>baselineH+60){
       int values[] = {0,0,0,0,255,255};
       setVibration(values);
-    }else if (sensorValueV>2800){
+    }else if (sensorValueV>baselineV+60){
       int values[] = {0,255,255,255,0,0};
       setVibration(values);
     }else {
       setVibration(0);
     }
   } else if (vMode == 4) {//Simulate Asphalt
-    if (sensorValueH>2800||sensorValueV>2800) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
       if (modeTimerTicks < 5) {
         modeTimerTicks++;
         setVibration(244);
@@ -310,12 +315,13 @@ void updateVibrationSystem() {
       setVibration(0);
     }
   } else if (vMode == 5) {//Simulate Schotter
-    if (sensorValueH>2800||sensorValueV>2800) {
-      if (!(modeTimerTicks%(10 + random(10)))) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
+      if (modeTimerTicks + random(15) < 15) {
         modeTimerTicks++;
         if (ledcRead(1)) {
           setVibration(255);
         }else {
+          modeTimerTicks = 0;
           setVibration(0);
         }
       }
@@ -324,11 +330,11 @@ void updateVibrationSystem() {
       setVibration(0);
     }
   } else if (vMode == 6) {//Simulate Gras
-    if (sensorValueH>2800||sensorValueV>2800) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
       //if (!(modeTimerTicks%(10 + random(10)))) {
       //  modeTimerTicks++;
       //  if (ledcRead(1)) {
-          setVibration(180);
+          setVibration(55);
       //  }else {
       //    setVibration(0);
       //  }
@@ -337,11 +343,11 @@ void updateVibrationSystem() {
       setVibration(0);
     }
   } else if (vMode == 7) {//Simulate Sand
-    if (sensorValueH>2800||sensorValueV>2800) {
+    if (sensorValueH>baselineH+60||sensorValueV>baselineV+60) {
       //if (!(modeTimerTicks%(10 + random(10)))) {
       //  modeTimerTicks++;
       //  if (ledcRead(1)) {
-          setVibration(210);
+          setVibration(70);
       //  }else {
       //    setVibration(0);
       //  }
@@ -542,9 +548,9 @@ void recordGyroRegisters() {
 
 void classifyMovement() {//  GROUND,  UP,  DOWN,  STANDING,  UNDEFINED
   // Pressure change on Chambers
-  if (sensorValueH > baseline + 60) {
+  if (sensorValueH > baselineH + 60) {
     sState = GROUND;
-  }else if (sensorValueH > baseline+20) {
+  }else if (sensorValueH > baselineH+20) {
     sState = STANDING;
   }else if (false) {
     sState = UP;
@@ -561,7 +567,6 @@ void setup() {
   Wire.setClock(400000);
   setupMPU();
   
-#ifdef INFLUXDB
 #ifdef WiFi_EN
     bool res;
     #ifdef LEFT
@@ -572,9 +577,10 @@ void setup() {
 #ifdef DEBUG
   Serial.println(WiFi.localIP());                                                                                                                                                                                          
 #endif
-#endif
   // Sync time
+  #ifdef INFLUXDB
   timeSync(TZ_INFO, NTP_SERVER1, NTP_SERVER2);
+  #endif
   #ifdef DEBUG
   Serial.println("time Fertig");
   #endif
@@ -627,8 +633,10 @@ void setup() {
   #ifdef DEBUG
   Serial.println("task1 Fertig");
   #endif
+  #ifdef INFLUXDB
   vTaskDelay(10 / portTICK_PERIOD_MS);
   xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
+  #endif
   #ifdef DEBUG
   Serial.println("task2 Fertig");
   #endif
@@ -675,19 +683,29 @@ void TaskLoop(void *pvParameters)  // This is a task.
     if (vibrate) {
       updateVibrationSystem();// Setze die Vibration
     }
-    SensorReading pointValue = {accelX, accelY, accelZ, gyroX, gyroY, gyroZ,sensorValueV, sensorValueH, baseline, getTimeStamp(&tv,3)};
+    #ifdef INFLUXDB
+    SensorReading pointValue = {accelX, accelY, accelZ, gyroX, gyroY, gyroZ,sensorValueV, sensorValueH, baselineH, getTimeStamp(&tv,3)};
     // Punkt wird erstellt mit allen gelesenen werten
     if (xQueueSend(msg_queue, (void *)&pointValue, 0) != pdTRUE) {
       #ifdef DEBUG
       Serial.println("Queue full");
       #endif
     }
+    #endif
     lastMesurement = micros() - tempMessure;
     //Serial.println("messureFin");
   }
 }
 
 void TaskWebserver(void*pvParameters) {
+  #ifdef LEFT
+    ArduinoOTA.setHostname("ShoeL");
+    #else
+    ArduinoOTA.setHostname("ShoeR");
+    #endif
+    #ifdef DEBUG
+  Serial.println("Setze Ota NAme");
+  #endif
   ArduinoOTA
     .onStart([]() {
       clientDelay = 1;
@@ -698,7 +716,13 @@ void TaskWebserver(void*pvParameters) {
       clientDelay = 200;
       ESP.restart();
     });
+    #ifdef DEBUG
+  Serial.println("StarteOta");
+  #endif
   ArduinoOTA.begin();
+  #ifdef DEBUG
+  Serial.println("OTA Gestartet");
+  #endif
   server.on("/", HTTP_GET, [](){
     server.send_P(200, "text/html", index_html);
   });
@@ -727,7 +751,9 @@ void TaskWebserver(void*pvParameters) {
   server.on("/start", []() {
     server.send(200, "text/plain", "Stoppe Upload und ValveSystem");
     state = 2600;
+    #ifdef INFLUXDB
     xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
+    #endif
   });
   server.on("/status", []() {
     server.send(200, "text/plain", "Die letzte Messung dauerte: " + String(lastMesurement) + "microsekunden<br>Der letzte Upload dauerte: " + String(lastUpload) + "microsekunden und hatte " + String(lastQueLen) + " Elemente.<br>Freier Heep: " + String(ESP.getFreeHeap()));
@@ -739,7 +765,7 @@ void TaskWebserver(void*pvParameters) {
   server.on("/asphalt", []() {
     vibrate = true;
     vMode = 4;
-    state = 4000;
+    state = 38000;
     server.send(200, "text/plain", "Simulating Sand");
   });
   server.on("/grass", []() {
@@ -769,9 +795,7 @@ void TaskWebserver(void*pvParameters) {
     server.send(200, "text/plain", "Starte Neu");
     vTaskDelay(100 / portTICK_PERIOD_MS);
     ESP.restart();
-    
   });
-  
   server.begin();
   for (;;)
   {
@@ -781,6 +805,7 @@ void TaskWebserver(void*pvParameters) {
   }
 }
 
+
 void TaskUpload(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
@@ -788,7 +813,9 @@ void TaskUpload(void *pvParameters)  // This is a task.
   #ifdef DEBUG
   Serial.println("Start uploadtask");
   #endif
+  #ifdef INFLUXDB
   InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
+  
 // Links oder Rechts
 #ifdef LEFT
   Point sensorStatus("L");// L, R
@@ -796,16 +823,16 @@ void TaskUpload(void *pvParameters)  // This is a task.
   Point sensorStatus("R");// L, R
 #endif
 client.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(MAX_BATCH_SIZE).bufferSize(WRITE_BUFFER_SIZE));
-  
+  #endif
   SensorReading item;
   long tempUploadTime = 0;
+#ifdef INFLUXDB
   for (;;)
   {
     int xD = 0;
     while (xQueueReceive(msg_queue, (void *)&item, 0) == pdTRUE && xD < MAX_BATCH_SIZE) {
       xD++;
       //Serial.println(item);
-#ifdef INFLUXDB
       sensorStatus.addField("ax", item.ax);
       sensorStatus.addField("ay", item.ay);
       sensorStatus.addField("az", item.az);
@@ -817,19 +844,10 @@ client.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(
       sensorStatus.addField("pB", item.pressureBaseline);
       sensorStatus.setTime(item.time_stamp);
       client.writePoint(sensorStatus);
-      #ifdef WiFi_EN
-      #else
-      #ifdef DEBUG
       //Serial.println(client.pointToLineProtocol(sensorStatus));
-      #endif
-      #endif
       sensorStatus.clearFields();
-#endif
     }
     lastQueLen = xD;
-#ifdef INFLUXDB
-    
-#ifdef WiFi_EN
 #ifdef DEBUG
     Serial.print("Start Upload von : ");
     Serial.println(xD);
@@ -844,12 +862,9 @@ client.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(
       #endif
     }
     lastUpload = micros() - tempUploadTime;
-#else
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-#endif
 #ifdef DEBUG
     Serial.println("END Uploadet");
     #endif
-#endif
   }
+  #endif
 }
