@@ -140,6 +140,8 @@ const char index_html[] PROGMEM = R"***(
   <label for="html">Lenolium</label><br>
   <input onchange="sendRe(gravel)" type="radio" id="gravel" name="fav_language" value="gravel">
   <label for="html">Gravel</label><br>
+  <input onchange="sendRe(evenout)" type="radio" id="evenout" name="fav_language" value="evenout">
+  <label for="html">Even out</label><br>
   <input onchange="sendRe(restart)" type="radio" id="restart" name="fav_language" value="restart">
   <label for="html">restart</label><br>
   <input onchange="sendRe(vibrate)" type="radio" id="vibrate" name="fav_language" value="vibrate">
@@ -413,6 +415,8 @@ void evenOut(int millisecends) {
     }
   }
   digitalWrite(verbinderPin, HIGH);
+  digitalWrite(zuluftHPin, LOW);
+  digitalWrite(zuluftVPin, LOW);
 }
 
 void holdValue(int value) {
@@ -766,13 +770,13 @@ void TaskWebserver(void*pvParameters) {
     vibrate = true;
     vMode = 4;
     state = 38000;
-    server.send(200, "text/plain", "Simulating Sand");
+    server.send(200, "text/plain", "Simulating Asphalt");
   });
   server.on("/grass", []() {
     vibrate = true;
     vMode = 6;
     state = 5;
-    server.send(200, "text/plain", "Simulating Sand");
+    server.send(200, "text/plain", "Simulating Grass");
   });
   server.on("/sand", []() {
     vibrate = true;
@@ -790,6 +794,10 @@ void TaskWebserver(void*pvParameters) {
     vMode = 5;
     state = 34000;
     server.send(200, "text/plain", "Simulating Sand");
+  });
+  server.on("/evenout", []() {
+    server.send(200, "text/plain", "Evenout");
+    state = 2;
   });
   server.on("/restart", []() {
     server.send(200, "text/plain", "Starte Neu");
