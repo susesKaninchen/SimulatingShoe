@@ -1,9 +1,9 @@
 #define CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE 0
-//#define INFLUXDB
+#define INFLUXDB
 #define WiFi_EN
-//#define DEBUG
-#define LEFT
+#define DEBUG
+//#define LEFT
 #include <Wire.h>
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
@@ -563,143 +563,10 @@ void classifyMovement() {//  GROUND,  UP,  DOWN,  STANDING,  UNDEFINED
   }
 }
 
-void setup() {
-  #ifdef DEBUG
-  Serial.begin(115200);
-  #endif
-  Wire.begin();
-  Wire.setClock(400000);
-  setupMPU();
-  
-#ifdef WiFi_EN
-    bool res;
-    #ifdef LEFT
-    res = wm.autoConnect("ShoeL","shoeshoe"); // password protected ap
-    #else
-    res = wm.autoConnect("ShoeR","shoeshoe"); // password protected ap
-    #endif
-#ifdef DEBUG
-  Serial.println(WiFi.localIP());                                                                                                                                                                                          
-#endif
-  // Sync time
-  #ifdef INFLUXDB
-  timeSync(TZ_INFO, NTP_SERVER1, NTP_SERVER2);
-  #endif
-  #ifdef DEBUG
-  Serial.println("time Fertig");
-  #endif
-#endif
-  msg_queue = xQueueCreate(msg_queue_len, sizeof(SensorReading));
-  #ifdef DEBUG
-  Serial.println("Queue Fertig");
-  #endif
-  // Gardware
-  //messure();
-  //Serial.println("messure Fertig");
-  pinMode(zuluftHPin, OUTPUT);//ZuluftHacke
-  pinMode(verbinderPin, OUTPUT);//VerbinderV
-  pinMode(zuluftVPin, OUTPUT);//ZuluftV
-  ledcSetup(0, PWM_FREQ, PWM_RES);
-  ledcAttachPin(Vibrator0, 0);
-  ledcWrite(0, 0);
-  ledcSetup(1, PWM_FREQ, PWM_RES);
-  ledcAttachPin(Vibrator1, 1);
-  ledcWrite(1, 0);
-  ledcSetup(2, PWM_FREQ, PWM_RES);
-  ledcAttachPin(Vibrator2, 2);
-  ledcWrite(2, 0);
-  ledcSetup(3, PWM_FREQ, PWM_RES);
-  ledcAttachPin(Vibrator3, 3);
-  ledcWrite(3, 0);
-  ledcSetup(4, PWM_FREQ, PWM_RES);
-  ledcAttachPin(Vibrator4, 4);
-  ledcWrite(4, 0);
-  ledcSetup(5, PWM_FREQ, PWM_RES);
-  ledcAttachPin(Vibrator5, 5);
-  ledcWrite(5, 0);
-  digitalWrite(zuluftHPin, LOW);
-  digitalWrite(verbinderPin, LOW);
-  digitalWrite(zuluftVPin, LOW);
-  #ifdef DEBUG
-  Serial.println("pins Fertig");
-  #endif
-  vTaskDelay(50 / portTICK_PERIOD_MS);
-  //messure();// Remove inductive nois
-  #ifdef DEBUG
-  Serial.println("mesure2 Fertig");
-  #endif
-  vTaskDelay(1 / portTICK_PERIOD_MS);
-  calibrate();
-  #ifdef DEBUG
-  Serial.println("callibarate Fertig");
-  #endif
-  xTaskCreatePinnedToCore(TaskLoop,  "TaskLoop",  ramLoop,  NULL, configMAX_PRIORITIES - 1,  &tloop,  ARDUINO_RUNNING_CORE);
-  #ifdef DEBUG
-  Serial.println("task1 Fertig");
-  #endif
-  #ifdef INFLUXDB
-  vTaskDelay(10 / portTICK_PERIOD_MS);
-  xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
-  #endif
-  #ifdef DEBUG
-  Serial.println("task2 Fertig");
-  #endif
-  #ifdef WiFi_EN
-  xTaskCreatePinnedToCore(TaskWebserver,  "TaskWebserver",  ramWebservice,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
-  #endif
-  #ifdef DEBUG
-  Serial.println("Webserver Fertig");
-  #endif
-}
-
-void loop()
-{
-  esp_task_wdt_init(30, false);
-  vTaskDelete(NULL);
-}
 
 /*--------------------------------------------------*/
 /*---------------------- Tasks ---------------------*/
 /*--------------------------------------------------*/
-
-void TaskLoop(void *pvParameters)  // This is a task.
-{
-  (void) pvParameters;
-  esp_task_wdt_init(30, false);
-  #ifdef DEBUG
-  Serial.println("Start Loop");
-  #endif
-  long tempMessure = 0;
-  struct timeval tv; // Erstelle die Zeit
-  TickType_t xLastWakeTime;
-  xLastWakeTime = xTaskGetTickCount();
-  for (;;) // A Task shall never return or exit.
-  {
-    vTaskDelayUntil(&xLastWakeTime, MESSUREMENT_SMAPLE_TIME / portTICK_PERIOD_MS);
-    // Sorge für eine Konstante Messung alle 10 MS
-    tempMessure = micros();// Messe die Microsekunden die eine Messung benötigt
-    gettimeofday(&tv, NULL);// hole die aktuelle Zeit
-    recordAccelRegisters();// Hole Accelerometer Werte
-    recordGyroRegisters();// Hole Gyroscope Messwerte
-    messure();// Messe den druck der Kammern
-    classifyMovement();// Classifiziere die Bewegung
-    updateValveSystem();// Setze die Ventile
-    if (vibrate) {
-      updateVibrationSystem();// Setze die Vibration
-    }
-    #ifdef INFLUXDB
-    SensorReading pointValue = {accelX, accelY, accelZ, gyroX, gyroY, gyroZ,sensorValueV, sensorValueH, baselineH, getTimeStamp(&tv,3)};
-    // Punkt wird erstellt mit allen gelesenen werten
-    if (xQueueSend(msg_queue, (void *)&pointValue, 0) != pdTRUE) {
-      #ifdef DEBUG
-      Serial.println("Queue full");
-      #endif
-    }
-    #endif
-    lastMesurement = micros() - tempMessure;
-    //Serial.println("messureFin");
-  }
-}
 
 void TaskWebserver(void*pvParameters) {
   #ifdef LEFT
@@ -875,4 +742,139 @@ client.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(
     #endif
   }
   #endif
+}
+
+
+void TaskLoop(void *pvParameters)  // This is a task.
+{
+  (void) pvParameters;
+  esp_task_wdt_init(30, false);
+  #ifdef DEBUG
+  Serial.println("Start Loop");
+  #endif
+  long tempMessure = 0;
+  struct timeval tv; // Erstelle die Zeit
+  TickType_t xLastWakeTime;
+  xLastWakeTime = xTaskGetTickCount();
+  for (;;) // A Task shall never return or exit.
+  {
+    vTaskDelayUntil(&xLastWakeTime, MESSUREMENT_SMAPLE_TIME / portTICK_PERIOD_MS);
+    // Sorge für eine Konstante Messung alle 10 MS
+    tempMessure = micros();// Messe die Microsekunden die eine Messung benötigt
+    gettimeofday(&tv, NULL);// hole die aktuelle Zeit
+    recordAccelRegisters();// Hole Accelerometer Werte
+    recordGyroRegisters();// Hole Gyroscope Messwerte
+    messure();// Messe den druck der Kammern
+    classifyMovement();// Classifiziere die Bewegung
+    updateValveSystem();// Setze die Ventile
+    if (vibrate) {
+      updateVibrationSystem();// Setze die Vibration
+    }
+    #ifdef INFLUXDB
+    SensorReading pointValue = {accelX, accelY, accelZ, gyroX, gyroY, gyroZ,sensorValueV, sensorValueH, baselineH, getTimeStamp(&tv,3)};
+    // Punkt wird erstellt mit allen gelesenen werten
+    if (xQueueSend(msg_queue, (void *)&pointValue, 0) != pdTRUE) {
+      #ifdef DEBUG
+      Serial.println("Queue full");
+      #endif
+    }
+    #endif
+    lastMesurement = micros() - tempMessure;
+    //Serial.println("messureFin");
+  }
+}
+
+void setup() {
+  #ifdef DEBUG
+  Serial.begin(115200);
+  #endif
+  Wire.begin();
+  Wire.setClock(400000);
+  setupMPU();
+  
+#ifdef WiFi_EN
+    bool res;
+    #ifdef LEFT
+    res = wm.autoConnect("ShoeL","shoeshoe"); // password protected ap
+    #else
+    res = wm.autoConnect("ShoeR","shoeshoe"); // password protected ap
+    #endif
+#ifdef DEBUG
+  Serial.println(WiFi.localIP());                                                                                                                                                                                          
+#endif
+  // Sync time
+  #ifdef INFLUXDB
+  timeSync(TZ_INFO, NTP_SERVER1, NTP_SERVER2);
+  #endif
+  #ifdef DEBUG
+  Serial.println("time Fertig");
+  #endif
+#endif
+  msg_queue = xQueueCreate(msg_queue_len, sizeof(SensorReading));
+  #ifdef DEBUG
+  Serial.println("Queue Fertig");
+  #endif
+  // Gardware
+  //messure();
+  //Serial.println("messure Fertig");
+  pinMode(zuluftHPin, OUTPUT);//ZuluftHacke
+  pinMode(verbinderPin, OUTPUT);//VerbinderV
+  pinMode(zuluftVPin, OUTPUT);//ZuluftV
+  ledcSetup(0, PWM_FREQ, PWM_RES);
+  ledcAttachPin(Vibrator0, 0);
+  ledcWrite(0, 0);
+  ledcSetup(1, PWM_FREQ, PWM_RES);
+  ledcAttachPin(Vibrator1, 1);
+  ledcWrite(1, 0);
+  ledcSetup(2, PWM_FREQ, PWM_RES);
+  ledcAttachPin(Vibrator2, 2);
+  ledcWrite(2, 0);
+  ledcSetup(3, PWM_FREQ, PWM_RES);
+  ledcAttachPin(Vibrator3, 3);
+  ledcWrite(3, 0);
+  ledcSetup(4, PWM_FREQ, PWM_RES);
+  ledcAttachPin(Vibrator4, 4);
+  ledcWrite(4, 0);
+  ledcSetup(5, PWM_FREQ, PWM_RES);
+  ledcAttachPin(Vibrator5, 5);
+  ledcWrite(5, 0);
+  digitalWrite(zuluftHPin, LOW);
+  digitalWrite(verbinderPin, LOW);
+  digitalWrite(zuluftVPin, LOW);
+  #ifdef DEBUG
+  Serial.println("pins Fertig");
+  #endif
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+  //messure();// Remove inductive nois
+  #ifdef DEBUG
+  Serial.println("mesure2 Fertig");
+  #endif
+  vTaskDelay(1 / portTICK_PERIOD_MS);
+  calibrate();
+  #ifdef DEBUG
+  Serial.println("callibarate Fertig");
+  #endif
+  xTaskCreatePinnedToCore(TaskLoop,  "TaskLoop",  ramLoop,  NULL, configMAX_PRIORITIES - 1,  &tloop,  ARDUINO_RUNNING_CORE);
+  #ifdef DEBUG
+  Serial.println("task1 Fertig");
+  #endif
+  #ifdef INFLUXDB
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+  xTaskCreatePinnedToCore(TaskUpload,  "TaskUpload",  ramUpload,  NULL,  1,  &tUpload,  ARDUINO_RUNNING_CORE);
+  #endif
+  #ifdef DEBUG
+  Serial.println("task2 Fertig");
+  #endif
+  #ifdef WiFi_EN
+  xTaskCreatePinnedToCore(TaskWebserver,  "TaskWebserver",  ramWebservice,  NULL,  1,  NULL,  ARDUINO_RUNNING_CORE);
+  #endif
+  #ifdef DEBUG
+  Serial.println("Webserver Fertig");
+  #endif
+}
+
+void loop()
+{
+  esp_task_wdt_init(30, false);
+  vTaskDelete(NULL);
 }
