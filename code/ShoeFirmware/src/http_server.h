@@ -26,15 +26,18 @@ void TaskWebserver(void *pvParameters) {
     server.on(UriRegex("^\\/parameter\\/([0-9]+)\\/value\\/([0-9]+)$"), []() {
         String parameter = server.pathArg(0);
         String value = server.pathArg(1);
-        if (parameter.toInt() == 0) {  // Setze Druck
-            state = value.toInt() * 10;
+        if (parameter.toInt() == 0) {         // Setze Druck
+            state = value.toInt() * 10;       // *10 um über 50000 zu kommen
         } else if (parameter.toInt() == 1) {  // Vibrate on GND
+            vibrate = true;
             vibrationStrenth = value.toInt();
             vMode = 8;
         } else if (parameter.toInt() == 2) {  // Vibrate in Air
+            vibrate = true;
             vibrationStrenth = value.toInt();
             vMode = 9;
         } else if (parameter.toInt() == 3) {  // Vibrate continues
+            vibrate = true;
             vibrationStrenth = value.toInt();
             vMode = 10;
         } else if (parameter.toInt() == 4) {
@@ -118,4 +121,3 @@ void TaskWebserver(void *pvParameters) {
         vTaskDelay(clientDelay / portTICK_PERIOD_MS);
     }
 }
-

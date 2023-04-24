@@ -1,6 +1,5 @@
 #include "defines.h"
 
-
 void init_vibration() {
     ledcSetup(0, PWM_FREQ, PWM_RES);
     ledcAttachPin(Vibrator0, 0);

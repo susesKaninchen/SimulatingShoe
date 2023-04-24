@@ -133,7 +133,7 @@ void setValue(int value) {
             digitalWrite(verbinderPin, LOW);
         }
     } else {
-        state = 2;// Even Out
+        state = 2;  // Even Out
     }
     if (sensorValueH < base - threshold) {
         digitalWrite(zuluftHPin, HIGH);  // ZuluftHacke
@@ -179,7 +179,6 @@ void updateValveSystem() {
         cc = 0;
     }
 }
-
 
 void setupMPU() {
     Wire.beginTransmission(0b1101000);  // This is the I2C address of the MPU (b1101000/b1101001 for AC0 low/high datasheet sec. 9.2)

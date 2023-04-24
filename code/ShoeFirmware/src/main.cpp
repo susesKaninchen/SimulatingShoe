@@ -1,7 +1,7 @@
 #include "defines.h"
+#include "http_server.h"
 #include "pressureSystem.h"
 #include "vibration.h"
-#include "http_server.h"
 
 void classifyMovement() {  //  GROUND,  UP,  DOWN,  STANDING,  UNDEFINED
     // Pressure change on Chambers
@@ -132,23 +132,25 @@ void setup() {
     // Ensure memory allocation was successful
     if (queueStorageArea == NULL || queueDataStructure == NULL) {
         print("Failed to allocate memory for the queue in (PS)RAM", DEBUG_ERROR);
-        while (1); // Halt execution
+        while (1)
+            ;  // Halt execution
     }
     msg_queue = xQueueCreateStatic(msg_queue_len, sizeof(SensorReading), queueStorageArea, queueDataStructure);
     // Check if the queue creation was successful
     if (msg_queue == NULL) {
         print("Failed to create the queue", DEBUG_ERROR);
-        while (1); // Halt execution
+        while (1)
+            ;  // Halt execution
     } else {
         print("Queue successfully created in (PS)RAM", DEBUG_INFO);
     }
-    //msg_queue = xQueueCreate(msg_queue_len, sizeof(SensorReading));
+    // msg_queue = xQueueCreate(msg_queue_len, sizeof(SensorReading));
     print("Queue Fertig", DEBUG_INFO);
     init_vibration();
     init_pressureSystem();
     print("pins Fertig", DEBUG_INFO);
     vTaskDelay(50 / portTICK_PERIOD_MS);
-// messure();// Remove inductive nois
+    // messure();// Remove inductive nois
     print("mesure2 Fertig", DEBUG_INFO);
     vTaskDelay(1 / portTICK_PERIOD_MS);
     calibrate();
