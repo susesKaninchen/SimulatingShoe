@@ -1,34 +1,34 @@
 # SimulatingShoe
 This Repository contains 3D Moddles of an Shoe, that tryes to simulate different undergrounds.
 
-Hier ist eine tabellarische Dokumentation der HTTP-Schnittstelle für die verschiedenen Endpunkte:
+Here is a tabular documentation of the HTTP interface for the different endpoints in English:
 
-| Endpunkt                  | Methode | Beschreibung                                                                                                     |
-|---------------------------|---------|------------------------------------------------------------------------------------------------------------------|
-| `/`                       | GET     | Liefert die Hauptseite der Anwendung (index_html)                                                               |
-| `/parameter/:param/value/:value` | GET     | Setzt Parameter `:param` auf den Wert `:value`. Siehe Parameter-Tabelle unten für Details                        |
-| `/vibrate/:id`            | GET     | Lässt Motor `:id` (0-5) für 1 Sekunde vibrieren                                                                  |
-| `/stop`                   | GET     | Stoppt den Upload und das Ventilsystem                                                                           |
-| `/start`                  | GET     | Startet den Upload und das Ventilsystem                                                                          |
-| `/status`                 | GET     | Liefert Informationen über die letzte Messung, den letzten Upload, die Anzahl der Elemente und den freien Heap |
-| `/vibrate`                | GET     | Schaltet Vibration ein oder aus                                                                                   |
-| `/asphalt`                | GET     | Simuliert Asphalt                                                                                                |
-| `/grass`                  | GET     | Simuliert Gras                                                                                                   |
-| `/sand`                   | GET     | Simuliert Sand                                                                                                   |
-| `/lenolium`               | GET     | Simuliert Linoleum                                                                                               |
-| `/gravel`                 | GET     | Simuliert Kies                                                                                                   |
-| `/evenout`                | GET     | Glättet das Ventilsystem                                                                                         |
-| `/restart`                | GET     | Startet das System neu                                                                                           |
+| Endpoint                  | Method | Description                                                                                                     |
+|---------------------------|--------|-----------------------------------------------------------------------------------------------------------------|
+| `/`                       | GET    | Returns the main page of the application (index_html)                                                          |
+| `/parameter/:param/value/:value` | GET | Sets parameter `:param` to the value `:value`. See parameter table below for details                          |
+| `/vibrate/:id`            | GET    | Vibrates motor `:id` (0-5) for 1 second                                                                        |
+| `/stop`                   | GET    | Stops the upload and the valve system                                                                          |
+| `/start`                  | GET    | Starts the upload and the valve system                                                                         |
+| `/status`                 | GET    | Returns information about the last measurement, last upload, number of elements, and free heap                |
+| `/vibrate`                | GET    | Toggles vibration on or off                                                                                     |
+| `/asphalt`                | GET    | Simulates asphalt                                                                                               |
+| `/grass`                  | GET    | Simulates grass                                                                                                |
+| `/sand`                   | GET    | Simulates sand                                                                                                  |
+| `/lenolium`               | GET    | Simulates linoleum                                                                                              |
+| `/gravel`                 | GET    | Simulates gravel                                                                                                |
+| `/evenout`                | GET    | Evens out the valve system                                                                                      |
+| `/restart`                | GET    | Restarts the system                                                                                            |
 
-Parameter-Tabelle:
+Parameter table:
 
-| Parameter-ID | Beschreibung                             |
-|--------------|------------------------------------------|
-| 0            | Setzt den Druck (Wert * 10)              |
-| 1            | Lässt den Motor auf dem Boden vibrieren  |
-| 2            | Lässt den Motor in der Luft vibrieren    |
-| 3            | Lässt den Motor kontinuierlich vibrieren |
-| 4            | (nicht belegt)                           |
-| 5            | (nicht belegt)                           |
+| Parameter ID | Description                             |
+|--------------|-----------------------------------------|
+| 0            | Sets the pressure (value * 10)          |
+| 1            | Vibrates the motor on the ground        |
+| 2            | Vibrates the motor in the air           |
+| 3            | Vibrates the motor continuously         |
+| 4            | (not used)                              |
+| 5            | (not used)                              |
 
-Die Dokumentation beschreibt jeden Endpunkt und seine Funktion. Die Parameter-Tabelle gibt Informationen über die unterstützten Parameter und ihre Bedeutung.
+The documentation describes each endpoint and its function. The parameter table provides information about the supported parameters and their meaning.
