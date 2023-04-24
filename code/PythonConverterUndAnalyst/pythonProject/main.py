@@ -11,7 +11,7 @@ def print_hi(name):
     #data = genfromtxt('pressure rize.csv', delimiter=',', skip_header=4)
     #print(data)
     newCsv = {}
-    filename = "pressure rize.csv"
+    filename = "C:/Users/mgabr/Downloads/influxdata_2023-04-21T10 46 21Z.csv"
     in_file = open(filename, "r")#2022-07-06_18 36_Sand
     for counter in range(0, 4):
         in_line = in_file.readline()
@@ -39,32 +39,38 @@ def print_hi(name):
     f.write(json.dumps(newCsv))
     f.close()
     print(newCsv)
-    """
+
     plt.figure()
     tims = []
     pv = []
     ph = []
     pb = []
-    """
+
     tempstart = 0
     standtime = []
     standstart = False
+    c = 0
     for timestamp in newCsv.keys():
-        if (standstart and int(newCsv[timestamp]["pH"])<2550 and int(newCsv[timestamp]["pV"])<2550):
-            standtime.append(timestamp - tempstart)
-            standstart = False
-        if (not standstart and (int(newCsv[timestamp]["pH"])>2550 or int(newCsv[timestamp]["pV"])>2550)):
-            tempstart = timestamp
-            standstart = True
-    print(standtime)
-    print(sum(standtime)/len(standtime))
-    """
+        c = c + 1
+        tims.append(timestamp - tempstart)
+        pv.append(newCsv[timestamp]["pV"])
+        ph.append(newCsv[timestamp]["pH"])
+        if c>10000:
+            break
+        #if (standstart and int(newCsv[timestamp]["pH"])<2550 and int(newCsv[timestamp]["pV"])<2550):
+        #    standtime.append(timestamp - tempstart)
+        #    standstart = False
+        #if (not standstart and (int(newCsv[timestamp]["pH"])>2550 or int(newCsv[timestamp]["pV"])>2550)):
+        #    tempstart = timestamp
+        #    standstart = True
+    #print(standtime)
+    #//print(sum(standtime)/len(standtime))
     plt.plot(tims, pv)
     plt.plot(tims, ph)
-    plt.plot(tims, pb)
+    #plt.plot(tims, pb)
     plt.show()
     plt.close()
-"""
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print_hi('PyCharm')
