@@ -6,7 +6,7 @@ void TaskWebserver(void *pvParameters) {
 #else
     ArduinoOTA.setHostname("ShoeR");
 #endif
-    print("Setze Ota NAme", DEBUG_DEBUG);
+    print("Setze Ota NAme", DEBUG_DEBUG_LVL);
     ArduinoOTA
         .onStart([]() {
             clientDelay = 1;
@@ -17,9 +17,9 @@ void TaskWebserver(void *pvParameters) {
             clientDelay = 200;
             ESP.restart();
         });
-    print("StarteOta", DEBUG_DEBUG);
+    print("StarteOta", DEBUG_DEBUG_LVL);
     ArduinoOTA.begin();
-    print("OTA Gestartet", DEBUG_DEBUG);
+    print("OTA Gestartet", DEBUG_DEBUG_LVL);
     server.on("/", []() {
         server.send_P(200, "text/html", index_html);
     });

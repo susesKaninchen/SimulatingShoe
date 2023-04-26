@@ -20,7 +20,7 @@ void TaskUpload(void *pvParameters)  // This is a task.
 {
     (void)pvParameters;
     esp_task_wdt_init(30, false);
-    print("Start uploadtask", DEBUG_INFO);
+    print("Start uploadtask", DEBUG_INFO_LVL);
 #ifdef INFLUXDB
     InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
 
@@ -56,20 +56,20 @@ void TaskUpload(void *pvParameters)  // This is a task.
             sensorStatus.clearFields();
         }
         lastQueLen = xD;
-        print(String("Start Upload von : ") + String(xD), DEBUG_DEBUG);
+        printS(String("Start Upload von : ") + String(xD), DEBUG_DEBUG_LVL);
         tempUploadTime = micros();
         if (!client.flushBuffer()) {
-            print("InfluxDB flush failed: ", DEBUG_ERROR);
-            print(client.getLastErrorMessage(), DEBUG_ERROR);
-            print("Full buffer: ", DEBUG_ERROR);
-            print(client.isBufferFull() ? "Yes" : "No", DEBUG_ERROR);
-            print("Heap Belegt: " + String(((ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize()) * 100.0) + "%", DEBUG_ERROR);
-            print("Free Heap: " + String(ESP.getFreeHeap()), DEBUG_ERROR);
-            print("Min Free Heap: " + String(ESP.getMinFreeHeap()), DEBUG_ERROR);
-            print("Max Heap: " + String(ESP.getMaxAllocHeap()), DEBUG_ERROR);
+            print("InfluxDB flush failed: ", DEBUG_ERROR_LVL);
+            printS(client.getLastErrorMessage(), DEBUG_ERROR_LVL);
+            print("Full buffer: ", DEBUG_ERROR_LVL);
+            print(client.isBufferFull() ? "Yes" : "No", DEBUG_ERROR_LVL);
+            printS("Heap Belegt: " + String(((ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize()) * 100.0) + "%", DEBUG_ERROR_LVL);
+            printS("Free Heap: " + String(ESP.getFreeHeap()), DEBUG_ERROR_LVL);
+            printS("Min Free Heap: " + String(ESP.getMinFreeHeap()), DEBUG_ERROR_LVL);
+            printS("Max Heap: " + String(ESP.getMaxAllocHeap()), DEBUG_ERROR_LVL);
         }
         lastUpload = micros() - tempUploadTime;
-        print("END Uploadet", DEBUG_DEBUG);
+        print("END Uploadet", DEBUG_DEBUG_LVL);
     }
 #endif
 }
@@ -78,7 +78,7 @@ void TaskLoop(void *pvParameters)  // This is a task.
 {
     (void)pvParameters;
     esp_task_wdt_init(30, false);
-    print("Start Loop", DEBUG_INFO);
+    print("Start Loop", DEBUG_INFO_LVL);
     long tempMessure = 0;
     struct timeval tv;  // Erstelle die Zeit
     TickType_t xLastWakeTime;
@@ -101,11 +101,11 @@ void TaskLoop(void *pvParameters)  // This is a task.
         SensorReading pointValue = {accelX, accelY, accelZ, gyroX, gyroY, gyroZ, sensorValueV, sensorValueH, baselineH, getTimeStamp(&tv, 3)};
         // Punkt wird erstellt mit allen gelesenen werten
         if (xQueueSend(msg_queue, (void *)&pointValue, 0) != pdTRUE) {
-            print("Queue full", DEBUG_ERROR);
+            print("Queue full", DEBUG_ERROR_LVL);
         }
 #endif
         lastMesurement = micros() - tempMessure;
-        print("Die Messung hat " + String(lastMesurement) + " Microsekunden gedauert", DEBUG_DEBUG);
+        printS("Die Messung hat " + String(lastMesurement) + " Microsekunden gedauert", DEBUG_DEBUG_LVL);
     }
 }
 
@@ -122,50 +122,50 @@ void setup() {
 #else
     res = wm.autoConnect("ShoeR", "shoeshoe");  // password protected ap
 #endif
-    print(String(WiFi.localIP()), DEBUG_INFO);
+    printS(String(WiFi.localIP()), DEBUG_INFO_LVL);
 // Sync time
 #ifdef INFLUXDB
     timeSync(TZ_INFO, NTP_SERVER1, NTP_SERVER2);
 #endif
 #endif
-    print("time Fertig", DEBUG_INFO);
+    print("time Fertig", DEBUG_INFO_LVL);
     // Ensure memory allocation was successful
     if (queueStorageArea == NULL || queueDataStructure == NULL) {
-        print("Failed to allocate memory for the queue in (PS)RAM", DEBUG_ERROR);
+        print("Failed to allocate memory for the queue in (PS)RAM", DEBUG_ERROR_LVL);
         while (1)
             ;  // Halt execution
     }
     msg_queue = xQueueCreateStatic(msg_queue_len, sizeof(SensorReading), queueStorageArea, queueDataStructure);
     // Check if the queue creation was successful
     if (msg_queue == NULL) {
-        print("Failed to create the queue", DEBUG_ERROR);
+        print("Failed to create the queue", DEBUG_ERROR_LVL);
         while (1)
             ;  // Halt execution
     } else {
-        print("Queue successfully created in (PS)RAM", DEBUG_INFO);
+        print("Queue successfully created in (PS)RAM", DEBUG_INFO_LVL);
     }
     // msg_queue = xQueueCreate(msg_queue_len, sizeof(SensorReading));
-    print("Queue Fertig", DEBUG_INFO);
+    print("Queue Fertig", DEBUG_INFO_LVL);
     init_vibration();
     init_pressureSystem();
-    print("pins Fertig", DEBUG_INFO);
+    print("pins Fertig", DEBUG_INFO_LVL);
     vTaskDelay(50 / portTICK_PERIOD_MS);
     // messure();// Remove inductive nois
-    print("mesure2 Fertig", DEBUG_INFO);
+    print("mesure2 Fertig", DEBUG_INFO_LVL);
     vTaskDelay(1 / portTICK_PERIOD_MS);
     calibrate();
-    print("callibarate Fertig", DEBUG_INFO);
+    print("callibarate Fertig", DEBUG_INFO_LVL);
     xTaskCreatePinnedToCore(TaskLoop, "TaskLoop", ramLoop, NULL, configMAX_PRIORITIES - 1, &tloop, ARDUINO_RUNNING_CORE);
-    print("task1 Fertig", DEBUG_INFO);
+    print("task1 Fertig", DEBUG_INFO_LVL);
 #ifdef INFLUXDB
     vTaskDelay(10 / portTICK_PERIOD_MS);
     xTaskCreatePinnedToCore(TaskUpload, "TaskUpload", ramUpload, NULL, 1, &tUpload, ARDUINO_RUNNING_CORE);
 #endif
-    print("task2 Fertig", DEBUG_INFO);
+    print("task2 Fertig", DEBUG_INFO_LVL);
 #ifdef WiFi_EN
     xTaskCreatePinnedToCore(TaskWebserver, "TaskWebserver", ramWebservice, NULL, 1, NULL, ARDUINO_RUNNING_CORE);
 #endif
-    print("Webserver Fertig", DEBUG_INFO);
+    print("Webserver Fertig", DEBUG_INFO_LVL);
 }
 
 void loop() {

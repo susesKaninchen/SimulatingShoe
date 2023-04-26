@@ -1,41 +1,41 @@
 #ifndef CONFIG_H
 #define CONFIG_H
-#define PSRAM_USE
+//#define PSRAM_USE
 
 #include <Arduino.h>
 #define CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE 0
 #define INFLUXDB
 #define WiFi_EN
-#define DEBUG_LVL 0  // 0 = Only errors
-#define DEBUG_TEMP 3
-#define DEBUG_DEBUG 2
-#define DEBUG_INFO 1
-#define DEBUG_ERROR 0
-
-void print(String s, byte level) {
-    print(s.c_str(), level);
-}
+#define DEBUG_LVL 1  // 0 = Only errors
+#define DEBUG_TEMP_LVL 4
+#define DEBUG_DEBUG_LVL 3
+#define DEBUG_INFO_LVL 2
+#define DEBUG_ERROR_LVL 1
 
 void print(const char *s, byte level) {
-    if (level == DEBUG_ERROR) {
+    if (level == DEBUG_ERROR_LVL) {
         Serial.println(s);
     }
-#if DEBUG_LVL >= DEBUG_INFO
-    if (level == DEBUG_INFO) {
-        Serial.println(s);
-    }
-#endif
-#if DEBUG_LVL >= DEBUG_DEBUG
-    if (level == DEBUG_DEBUG) {
+#if DEBUG_LVL_LVL >= DEBUG_INFO_LVL
+    if (level == DEBUG_INFO_LVL) {
         Serial.println(s);
     }
 #endif
-#if DEBUG_LVL >= DEBUG_TEMP
-    if (level == DEBUG_TEMP) {
+#if DEBUG_LVL_LVL >= DEBUG_DEBUG_LVL
+    if (level == DEBUG_DEBUG_LVL) {
         Serial.println(s);
     }
 #endif
+#if DEBUG_LVL_LVL >= DEBUG_TEMP_LVL
+    if (level == DEBUG_TEMP_LVL) {
+        Serial.println(s);
+    }
+#endif
+}
+
+void printS(String s, byte level) {
+    print(s.c_str(), level);
 }
 
 #define LEFT
@@ -106,8 +106,8 @@ int filter = 0;
 int threshold = 20;
 int state = 3;  // 0 PUMP_FRONT, 1 PUMP_BACK, 2 EVEN_OUT, 3 PAUSE, 4 OPEN, 5 Evenout vorever, 6 CALLIBRATE, 7 not defined, <5000 Pump Front to val, >5000 go to value and even out
 int cc = 0;
-double baselineH = 0;
-double baselineV = 0;
+float baselineH = 0;
+float baselineV = 0;
 unsigned long startHigh = 0;
 unsigned long startLow = 0;
 unsigned long laststartHigh = 0;
@@ -158,76 +158,83 @@ WebServer server(80);
 const char index_html[] PROGMEM = R"***(
 <!DOCTYPE html>
 <html>
-<body>
-
-<h1>Modes</h1>
-
-<form action="/action_page.php">
-  <p>Please select the SystemState:</p>
- <input onchange="sendRe(stop)" type="radio" id="stop" name="fav_language" value="stop">
-  <label for="html">STOP Upload</label><br>
-  <input onchange="sendRe(start)" type="radio" id="start" name="fav_language" value="start">
-  <label for="html">START Upload</label><br>
-  <input onchange="sendRe(asphalt)" type="radio" id="asphalt" name="fav_language" value="asphalt">
-  <label for="html">Asphalte</label><br>
-  <input onchange="sendRe(grass)" type="radio" id="grass" name="fav_language" value="grass">
-  <label for="html">grass</label><br>
-  <input onchange="sendRe(sand)" type="radio" id="sand" name="fav_language" value="sand">
-  <label for="html">sand</label><br>
-  <input onchange="sendRe(lenolium)" type="radio" id="lenolium" name="fav_language" value="lenolium">
-  <label for="html">Lenolium</label><br>
-  <input onchange="sendRe(gravel)" type="radio" id="gravel" name="fav_language" value="gravel">
-  <label for="html">Gravel</label><br>
-  <input onchange="sendRe(evenout)" type="radio" id="evenout" name="fav_language" value="evenout">
-  <label for="html">Even out</label><br>
-  <input onchange="sendRe(restart)" type="radio" id="restart" name="fav_language" value="restart">
-  <label for="html">restart</label><br>
-  <input onchange="sendRe(vibrate)" type="radio" id="vibrate" name="fav_language" value="vibrate">
-  <label for="html">VibrationToggle</label><br>
-  <input onchange="changeMode(mode1)" type="radio" id="modeRadio" name="fav_language" value="modeRadio">
-  <input type="text" id="mode1" name="modeValue1" value="0"><br>
-  <input onchange="changeMode(mode2)" type="radio" id="modeRadio" name="fav_language" value="modeRadio">
-  <input type="text" id="mode2" name="modeValue2" value="0"><br>
-  <br><br>
-  <span id="status"></span>
-  <br>
-</form>
-
-<script>
-function changeMode(x) {
-  document.getElementById("status").innerHTML = "";
-
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("status").innerHTML =
-      "OK";
-    }else {
-      document.getElementById("status").innerHTML =
-      "ERR";
-    }
-  };
-  xhttp.open("GET", '/parameter/0/value/' + (x.value + ''), true);
-  xhttp.send();
+  <head>
+  <style>
+  body {
+  background-color: #F2F2F2;
 }
 
-function sendRe(link) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("status").innerHTML =
-      "OK";
-    }else {
-      document.getElementById("status").innerHTML =
-      "ERR";
-    }
-  };
-  xhttp.open("GET", link.id, true);
-  xhttp.send();
+form {
+  background-color: #E0E0E0;
+  padding: 20px;
+  border-radius: 10px;
+  margin: 0 auto;
+  max-width: 600px;
 }
-</script>
 
-</body>
+#status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 100px;
+  height: 50px;
+  margin: 0 auto;
+  background-color: #37913f;
+}
+
+  </style>
+    <meta charset="UTF-8">
+    <title>Modes</title>
+  </head>
+  <body>
+    <form>
+      <p>Please select the SystemState:</p>
+      <input onchange="sendRequest('stop')" type="radio" id="stop" name="system_state" value="stop">
+      <label for="stop">STOP Upload</label><br>
+      <input onchange="sendRequest('start')" type="radio" id="start" name="system_state" value="start">
+      <label for="start">START Upload</label><br>
+      <input onchange="sendRequest('asphalt')" type="radio" id="asphalt" name="system_state" value="asphalt">
+      <label for="asphalt">Asphalte</label><br>
+      <input onchange="sendRequest('grass')" type="radio" id="grass" name="system_state" value="grass">
+      <label for="grass">grass</label><br>
+      <input onchange="sendRequest('sand')" type="radio" id="sand" name="system_state" value="sand">
+      <label for="sand">sand</label><br>
+      <input onchange="sendRequest('lenolium')" type="radio" id="lenolium" name="system_state" value="lenolium">
+      <label for="lenolium">Lenolium</label><br>
+      <input onchange="sendRequest('gravel')" type="radio" id="gravel" name="system_state" value="gravel">
+      <label for="gravel">Gravel</label><br>
+      <input onchange="sendRequest('evenout')" type="radio" id="evenout" name="system_state" value="evenout">
+      <label for="evenout">Even out</label><br>
+      <input onchange="sendRequest('restart')" type="radio" id="restart" name="system_state" value="restart">
+      <label for="restart">restart</label><br>
+      <input onchange="sendRequest('vibrate')" type="radio" id="vibrate" name="system_state" value="vibrate">
+      <label for="vibrate">VibrationToggle</label><br>
+      <input type="radio" id="mode1" name="system_state" value="">
+      <input type="text" id="modeValue1" name="modeValue1" value="0">
+      <br>
+      <input type="radio" id="mode2" name="system_state" value="">
+      <input type="text" id="modeValue2" name="modeValue2" value="0">
+      <br><br>
+    </form>
+    <p id="status"></p>
+    <script>
+      function sendRequest(systemState) {
+        document.getElementById("status").innerHTML = "";
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+          if (this.readyState == 4) {
+            if (this.status == 200) {
+              document.getElementById("status").innerHTML = "OK";
+            } else {
+              document.getElementById("status").innerHTML = "ERR";
+            }
+          }
+        };
+        xhttp.open("GET", "/parameter/0/value/" + systemState, true);
+        xhttp.send();
+      }
+    </script>
+  </body>
 </html>
 )***";
 
@@ -253,7 +260,7 @@ struct SensorReading {
     long gz;
     int pressureFront;              // 2bit
     int pressureBack;               // 2bit
-    double pressureBaseline;        // 8bytes
+    float pressureBaseline;        // 8bytes
     unsigned long long time_stamp;  // 4
 };                                  // 40bytes
 static QueueHandle_t msg_queue;
@@ -261,7 +268,7 @@ static QueueHandle_t msg_queue;
 #define msg_queue_len 2000
 uint8_t *queueStorageArea = (uint8_t *)ps_malloc(msg_queue_len * sizeof(SensorReading));
 StaticQueue_t *queueDataStructure = (StaticQueue_t *)ps_malloc(sizeof(StaticQueue_t));
-#elif
+#else
 #define msg_queue_len 400
 uint8_t *queueStorageArea = (uint8_t *)malloc(msg_queue_len * sizeof(SensorReading));
 StaticQueue_t *queueDataStructure = (StaticQueue_t *)malloc(sizeof(StaticQueue_t));
