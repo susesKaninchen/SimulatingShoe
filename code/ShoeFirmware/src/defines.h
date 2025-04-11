@@ -7,7 +7,7 @@
 #define ARDUINO_RUNNING_CORE 0
 #define INFLUXDB
 #define WiFi_EN
-#define DEBUG_LVL 1  // 0 = Only errors
+#define DEBUG_LVL 2  // 0 = Only errors
 #define DEBUG_TEMP_LVL 4
 #define DEBUG_DEBUG_LVL 3
 #define DEBUG_INFO_LVL 2
@@ -38,7 +38,7 @@ void printS(String s, byte level) {
     print(s.c_str(), level);
 }
 
-#define LEFT
+//#define LEFT
 
 /* Aus sich vom ESP IMU unten
   Pin  IO  Mosfet
@@ -62,7 +62,7 @@ void printS(String s, byte level) {
 #define sensorHPin 1  // 1,32  // Analog input pin that the potentiometer is attached to32
 #define sensorVPin 2  // 2, 33  // Analog input pin that the potentiometer is attached to33
 #endif
-#define MESSUREMENT_SMAPLE_TIME 10  // ms
+#define MESSUREMENT_SMAPLE_TIME 25  // ms
 long lastMesurement = 0;
 long lastUpload = 0;
 int lastQueLen = 0;
@@ -141,17 +141,31 @@ WebServer server(80);
 #ifdef INFLUXDB
 #include <InfluxDbClient.h>
 #include <InfluxDbCloud.h>
-#define INFLUXDB_URL "https://europe-west1-1.gcp.cloud2.influxdata.com"
-#define INFLUXDB_TOKEN "-uPns8ptZ32cvyMqNv3c4Ez-ycV5XQYsRv3p3FVPJ7uDPn7n-gI7b88BW9HmxhMNjRySxLZb54-3uKuODIijHg=="
-#define INFLUXDB_ORG "marcogabrecht@gmail.com"
+#define INFLUX_CLOUD
+#ifdef INFLUX_CLOUD
+#define INFLUXDB_URL "https://us-east-1-1.aws.cloud2.influxdata.com"
+//#define INFLUXDB_TOKEN "-uPns8ptZ32cvyMqNv3c4Ez-ycV5XQYsRv3p3FVPJ7uDPn7n-gI7b88BW9HmxhMNjRySxLZb54-3uKuODIijHg==" // Original
+#define INFLUXDB_TOKEN "JZ4lhDG0j1448iNOSJONsGXGhwsCzFD9EGifhpVZHfnuF8AkYPLStx_EAhjHn82_Fvl7vxiaSCbmR-DQz7BO0w=="
+#define INFLUXDB_ORG "CoSa"
+#define INFLUXDB_BUCKET "Schuhsohle"
+#else// TH CLoud
+#define INFLUXDB_URL "http://sim01.th-luebeck.de:8086"//http://sim01.th-luebeck.de:8086
+//#define INFLUXDB_TOKEN "-uPns8ptZ32cvyMqNv3c4Ez-ycV5XQYsRv3p3FVPJ7uDPn7n-gI7b88BW9HmxhMNjRySxLZb54-3uKuODIijHg==" // Original
+#define INFLUXDB_TOKEN "2mTc95K68RKqixEPk0JZMIE3vKj2EXFj4u4jxatC66-3w_0MSR67HKlDMCKBuizz7Msy05VYHVUqgeGm2bdBqQ=="
+#define INFLUXDB_ORG "th-luebeck.de"
 #define INFLUXDB_BUCKET "Schusohle"
+#endif
+//#define INFLUXDB_URL "https://us-east-1-1.aws.cloud2.influxdata.com"
+//#define INFLUXDB_TOKEN "7bYbtoIWp962dbmQpWBvchlPyiu_RmsrCyBxaHPb4_twsTULhOBgNuJVnyV5a0CoJFq5uvP4v4_Od1rl5DX6vg=="
+//#define INFLUXDB_ORG "klarawang27@gmail.com"
+//#define INFLUXDB_BUCKET "10.5DataCollection"
 
 #define TZ_INFO "CET-1CEST,M3.5.0,M10.5.0/3"
 #define NTP_SERVER1 "pool.ntp.org"
 #define NTP_SERVER2 "time.nis.gov"
 #define WRITE_PRECISION WritePrecision::MS
-#define MAX_BATCH_SIZE 250
-#define WRITE_BUFFER_SIZE 500  // MAX_BATCH_SIZE*2
+#define MAX_BATCH_SIZE 25
+#define WRITE_BUFFER_SIZE 50  // MAX_BATCH_SIZE*2
 #endif
 
 // HTML web page

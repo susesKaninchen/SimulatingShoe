@@ -7,6 +7,7 @@ import pytz
 import json
 import matplotlib.pyplot as plt
 
+
 def print_hi(name):
     #data = genfromtxt('pressure rize.csv', delimiter=',', skip_header=4)
     #print(data)
@@ -28,17 +29,17 @@ def print_hi(name):
         _date_obj = iso8601.parse_date(values[5])
         _date_utc = _date_obj.astimezone(pytz.utc)
         timestamp = _date_utc.timestamp() * 1000
-        value = values[6]
+        value = float(values[6])
         einheit = values[7]
         if timestamp in newCsv.keys():
-            newCsv[timestamp][einheit] = value
+            newCsv[timestamp][einheit] = float(value)
         else:
-            newCsv[timestamp] = {einheit : value}
+            newCsv[timestamp] = {einheit : float(value)}
     in_file.close()
-    f = open(filename[:-4] + ".json", "a")
-    f.write(json.dumps(newCsv))
-    f.close()
-    print(newCsv)
+    #f = open(filename[:-4] + ".json", "a")
+    #f.write(json.dumps(newCsv))
+    #f.close()
+    #print(newCsv)
 
     plt.figure()
     tims = []
@@ -50,13 +51,42 @@ def print_hi(name):
     standtime = []
     standstart = False
     c = 0
+    tempstart = 0
+    start = False
     for timestamp in newCsv.keys():
+        if ((float(newCsv[timestamp]["pV"]) >2800 or float(newCsv[timestamp]["pH"]) >2800) and not start):
+            #print("Start:" + str(timestamp))
+            tempstart = timestamp
+            start = True
+            tims = []
+            pv = []
+            ph = []
+            #pb = []
+        elif ((float(newCsv[timestamp]["pV"]) <2800 and float(newCsv[timestamp]["pH"]) <2800) and start):
+            if timestamp - tempstart > 5000:
+                #tempstart as human readable date
+                #print("Start:" + str(iso8601.parse_date(newCsv[tempstart]["dateTime:RFC3339"])))
+                print("Start:" + str(tempstart))
+                print("End:" + str(timestamp) + "\nDuration: " + str(timestamp - tempstart) + "\n")
+                plt.plot(tims, pv)
+                plt.plot(tims, ph)
+                #plt.plot(tims, pb)
+                plt.show()
+                plt.close()
+                #export as csv
+                f = open(filename[:-4] + "_" + str(tempstart) + ".csv", "a")
+                f.write("timestamp,pV,pH\n")
+                for i in range(0, len(tims)):
+                    f.write(str(tims[i]) + "," + str(pv[i]) + "," + str(ph[i]) + "\n")
+                f.close()
+            start = False
         c = c + 1
-        tims.append(timestamp - tempstart)
+        tims.append(timestamp)
         pv.append(newCsv[timestamp]["pV"])
         ph.append(newCsv[timestamp]["pH"])
-        if c>10000:
-            break
+        #ph.append(newCsv[timestamp]["pB"])
+        #if c>10000:
+        #    break
         #if (standstart and int(newCsv[timestamp]["pH"])<2550 and int(newCsv[timestamp]["pV"])<2550):
         #    standtime.append(timestamp - tempstart)
         #    standstart = False
@@ -65,11 +95,11 @@ def print_hi(name):
         #    standstart = True
     #print(standtime)
     #//print(sum(standtime)/len(standtime))
-    plt.plot(tims, pv)
-    plt.plot(tims, ph)
+    #plt.plot(tims, pv)
+    #plt.plot(tims, ph)
     #plt.plot(tims, pb)
-    plt.show()
-    plt.close()
+    #plt.show()
+    #plt.close()
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':

@@ -41,7 +41,9 @@ void TaskWebserver(void *pvParameters) {
             vibrationStrenth = value.toInt();
             vMode = 10;
         } else if (parameter.toInt() == 4) {
+            digitalWrite(value.toInt(), HIGH);
         } else if (parameter.toInt() == 5) {
+            digitalWrite(value.toInt(), LOW);
         }
         state = value.toInt();
         server.send(200, "text/plain", "Set " + parameter + " to " + value);
@@ -61,6 +63,9 @@ void TaskWebserver(void *pvParameters) {
         server.send(200, "text/plain", "Stoppe Upload und ValveSystem");
         state = 3;
         vTaskDelete(tUpload);
+    });
+    server.on("/presure", []() {
+        server.send(200, "text/plain", "Presure Front:" + String(sensorValueV) + "\nPresure Back:" + String(sensorValueH));
     });
     server.on("/start", []() {
         server.send(200, "text/plain", "Stoppe Upload und ValveSystem");
